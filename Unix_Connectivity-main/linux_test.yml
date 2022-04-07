@@ -1,0 +1,32 @@
+# **** Setting Socket tunnel ****
+- name: Checking Unix Connectivity
+  hosts: all
+  become: true
+  gather_facts: false
+  ignore_errors: true
+  vars:
+      account_code: "{{ hostvars['localhost']['account_code'] }}"
+      trans_num: "{{ hostvars['localhost']['trans_num'] }}"
+  vars_files:
+     - vars/settings.yml
+  tasks:
+    - name: Check Unix Connectivity
+      ping:
+      register: ping_result
+    - debug: msg="Unble to reach endpoint"
+      when: '"unreachable" in ping_result and ping_result.unreachable'
+    - debug: msg="Able to reach endpoint"
+      when: '"ping" in ping_result and ping_result.ping=="pong"'
+    - name: Check User Password expiry date
+      shell: chage -l {{ user_name }} | grep "Password expires"
+      when: '"ping" in ping_result and ping_result.ping=="pong"'
+      register: password
+    - debug: msg="{{password.stdout | replace('\t', '')}}"
+    - name: Check Sudo permission
+      when: '"ping" in ping_result and ping_result.ping=="pong"'
+      shell: sudo -n -l -U {{ user_name }} 2>&1 | egrep -c -i "not allowed to run sudo|unknown user"
+      register: sudopermission
+    - debug: msg="Allowed to run Sudo"
+      when: sudopermission.stdout == "0"
+    - debug: msg="Not allowed to run Sudo"
+      when: sudopermission.stdout == "1"
